@@ -7,6 +7,14 @@ import { voronoiFracture } from "./fracture/VoronoiFracture";
 import { fracture as simpleFracture } from "./fracture/Fracture";
 import { slice } from "./fracture/Slice";
 
+interface IBabylon {
+  Mesh : typeof Mesh, 
+  VertexBuffer : typeof VertexBuffer, 
+  VertexData : typeof VertexData, 
+  Quaternion : typeof Quaternion, 
+  Vector3 : typeof Vector3
+}
+
 // https://playground.babylonjs.com/#0H33JG
 
 /**
@@ -15,6 +23,7 @@ import { slice } from "./fracture/Slice";
  * you must manually add them using scene.add(...fragments).
  */
 export class DestructibleMesh {
+  private readonly BABYLON : IBabylon;
   private _mesh : Mesh;
   private _outsideMaterial : Material|null = null;
   private _insideMaterial : Material|null = null;
@@ -22,6 +31,7 @@ export class DestructibleMesh {
   public get mesh() { return this._mesh; }
 
   constructor(
+    BABYLON : IBabylon,
     mesh : Mesh,
     outerMaterial?: Material,
     innerMaterial?: Material,
@@ -31,6 +41,7 @@ export class DestructibleMesh {
     this._mesh = mesh;
     this._outsideMaterial = outerMaterial || mesh.material || null;
     this._insideMaterial = innerMaterial || null;
+    this.BABYLON = BABYLON;
   }
 
   /**
@@ -53,9 +64,9 @@ export class DestructibleMesh {
       return [];
     }
 
-    const ps = this._mesh.getVerticesData(VertexBuffer.PositionKind);
-    const ns = this._mesh.getVerticesData(VertexBuffer.NormalKind);
-    const us = this._mesh.getVerticesData(VertexBuffer.UVKind);
+    const ps = this._mesh.getVerticesData(this.BABYLON.VertexBuffer.PositionKind);
+    const ns = this._mesh.getVerticesData(this.BABYLON.VertexBuffer.NormalKind);
+    const us = this._mesh.getVerticesData(this.BABYLON.VertexBuffer.UVKind);
     const is = this._mesh.getIndices() || [];
 
     if(ps === null || ns === null || us === null) {
@@ -105,10 +116,10 @@ export class DestructibleMesh {
     // Create mesh objects for each fragment
     const fragments = fragmentGeometries.map((fragmentGeometry, index) => {
 
-      const fragMesh = new Mesh("Frag"+index, this._mesh.getScene());
-      const vertexData = new VertexData();
+      const fragMesh = new this.BABYLON.Mesh("Frag"+index, this._mesh.getScene());
+      const vertexData = new this.BABYLON.VertexData();
       const normals : number[] = [];
-      VertexData.ComputeNormals(fragmentGeometry.positions, fragmentGeometry.indices, normals);
+      this.BABYLON.VertexData.ComputeNormals(fragmentGeometry.positions, fragmentGeometry.indices, normals);
 
       vertexData.positions = fragmentGeometry.positions;
       vertexData.uvs = fragmentGeometry.uvs;
@@ -117,7 +128,7 @@ export class DestructibleMesh {
       vertexData.applyToMesh(fragMesh);     
       
       fragMesh.material = this._outsideMaterial;
-      fragMesh.rotationQuaternion = Quaternion.Identity();
+      fragMesh.rotationQuaternion = this.BABYLON.Quaternion.Identity();
       fragMesh.computeWorldMatrix(true);
       fragMesh.refreshBoundingInfo(true);
 
@@ -131,7 +142,7 @@ export class DestructibleMesh {
       fragMesh.refreshBoundingInfo(true);      
 
       // Apply the parent's transform to the fragment position
-      const worldCenter = Vector3.TransformCoordinates(bbxCenter, parentMatrix);
+      const worldCenter = this.BABYLON.Vector3.TransformCoordinates(bbxCenter, parentMatrix);
       fragMesh.position.copyFrom(worldCenter);
       fragMesh.rotationQuaternion.copyFrom(this._mesh.rotationQuaternion || this._mesh.rotation.toQuaternion());
       fragMesh.scaling.copyFrom(this._mesh.scaling);
@@ -140,7 +151,7 @@ export class DestructibleMesh {
       fragMesh.computeWorldMatrix(true);
       fragMesh.refreshBoundingInfo(true);        
 
-      const destMesh = new DestructibleMesh(fragMesh, this._outsideMaterial || undefined, this._insideMaterial || undefined);
+      const destMesh = new DestructibleMesh(this.BABYLON, fragMesh, this._outsideMaterial || undefined, this._insideMaterial || undefined);
 
       // Call the onFragment callback if provided
       if (onFragment) {
