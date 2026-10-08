@@ -1,4 +1,4 @@
-import { Vector3 } from "three";
+import { Vector3 } from "../RendererApi";
 import { FractureOptions } from "../entities/FractureOptions";
 import { Fragment } from "../entities/Fragment";
 import { sliceFragment } from "./SliceFragment";

@@ -1,5 +1,4 @@
-import * as THREE from "three";
-import { Vector2, Vector3 } from "three";
+import { Vector2, Vector3, MeshGeometry } from "../RendererApi";
 import { sliceFragment } from "./SliceFragment";
 import {
   geometryToFragment,
@@ -17,12 +16,12 @@ import { findIsolatedGeometry } from "./FractureFragment";
  * @returns An object containing the geometries above and below the slice plane
  */
 export function slice(
-  geometry: THREE.BufferGeometry,
+  geometry: MeshGeometry,
   sliceNormal: Vector3,
   sliceOrigin: Vector3,
   textureScale: Vector2,
   textureOffset: Vector2,
-): THREE.BufferGeometry[] {
+): MeshGeometry[] {
   // Convert THREE.BufferGeometry to our internal Fragment representation
   const fragment = geometryToFragment(geometry);
 

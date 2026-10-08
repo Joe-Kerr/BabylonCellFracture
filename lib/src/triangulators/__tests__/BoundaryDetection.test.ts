@@ -1,4 +1,4 @@
-import { Vector2, Vector3 } from "three";
+import { Vector2, Vector3 } from "../../RendererApi";
 import { ConstrainedTriangulator } from "../ConstrainedTriangulator";
 import { MeshVertex } from "../../entities/MeshVertex";
 import { EdgeConstraint } from "../../entities/EdgeConstraint";

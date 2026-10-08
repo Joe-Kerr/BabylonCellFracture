@@ -1,4 +1,4 @@
-import { Vector2, Vector3 } from "three";
+import { Vector2, Vector3 } from "../../RendererApi";
 import { Fragment, SlicedMeshSubmesh } from "../Fragment";
 import { MeshVertex } from "../MeshVertex";
 import { EdgeConstraint } from "../EdgeConstraint";

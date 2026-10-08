@@ -1,28 +1,31 @@
-import * as THREE from "three";
-import { Vector2, Vector3 } from "three";
+import { Vector2, Vector3, MeshGeometry } from "../RendererApi";
 import { Fragment } from "../entities/Fragment";
 import { MeshVertex } from "../entities/MeshVertex";
 
+const CoordinateSystemConversion = -1;
+
 /**
  * Converts a THREE.BufferGeometry to our internal Fragment representation
+ * 
+ * IMPORTANT: The library operates in RH coordinate system - but Babylon expects LH.
  */
-export function geometryToFragment(geometry: THREE.BufferGeometry): Fragment {
-  const positions = geometry.attributes.position.array as Float32Array;
-  const normals = geometry.attributes.normal.array as Float32Array;
-  const uvs = geometry.attributes.uv?.array as Float32Array;
+export function geometryToFragment(geometry: MeshGeometry): Fragment {
+  const positions = geometry.positions;
+  const normals = geometry.normals;
+  const uvs = geometry.uvs;
 
   const fragment = new Fragment();
   for (let i = 0; i < positions.length / 3; i++) {
     const position = new Vector3(
       positions[3 * i],
       positions[3 * i + 1],
-      positions[3 * i + 2],
+      positions[3 * i + 2]     * CoordinateSystemConversion
     );
 
     const normal = new Vector3(
       normals[3 * i],
       normals[3 * i + 1],
-      normals[3 * i + 2],
+      normals[3 * i + 2]     * CoordinateSystemConversion
     );
 
     const uv = uvs
@@ -34,8 +37,8 @@ export function geometryToFragment(geometry: THREE.BufferGeometry): Fragment {
 
   // Generate index if it doesn't exist
   let indices: number[];
-  if (geometry.index) {
-    indices = Array.from(geometry.index.array as Uint32Array);
+  if (geometry.indices.length > 0) {
+    indices = Array.from(geometry.indices);
   } else {
     // Create sequential indices for non-indexed geometry
     const vertexCount = positions.length / 3;
@@ -43,19 +46,17 @@ export function geometryToFragment(geometry: THREE.BufferGeometry): Fragment {
   }
 
   // Preserve material groups if geometry has been previously sliced
-  if (geometry.groups && geometry.groups.length === 2) {
+  if (geometry.idxCutStart > 0) {
     // Split indices into two groups based on material groups
     const group0Indices: number[] = [];
     const group1Indices: number[] = [];
 
-    for (const group of geometry.groups) {
-      const targetArray = group.materialIndex === 0 ? group0Indices : group1Indices;
-      const start = group.start;
-      const end = start + group.count;
+    for(let i=geometry.idxOrgStart; i<=geometry.idxOrgEnd; i++) {
+      group0Indices.push(indices[i]);
+    }
 
-      for (let i = start; i < end; i++) {
-        targetArray.push(indices[i]);
-      }
+    for(let i=geometry.idxCutStart; i<=geometry.idxCutEnd; i++) {
+      group1Indices.push(indices[i]);
     }
 
     fragment.triangles = [group0Indices, group1Indices];
@@ -72,9 +73,7 @@ export function geometryToFragment(geometry: THREE.BufferGeometry): Fragment {
 /**
  * Converts our internal Fragment representation to a THREE.BufferGeometry
  */
-export function fragmentToGeometry(fragment: Fragment): THREE.BufferGeometry {
-  const geometry = new THREE.BufferGeometry();
-
+export function fragmentToGeometry(fragment: Fragment): MeshGeometry {
   const vertexCount = fragment.vertices.length + fragment.cutVertices.length;
   const positions = new Array<number>(vertexCount * 3);
   const normals = new Array<number>(vertexCount * 3);
@@ -88,11 +87,11 @@ export function fragmentToGeometry(fragment: Fragment): THREE.BufferGeometry {
   for (const vert of fragment.vertices) {
     positions[posIdx++] = vert.position.x;
     positions[posIdx++] = vert.position.y;
-    positions[posIdx++] = vert.position.z;
+    positions[posIdx++] = vert.position.z     * CoordinateSystemConversion;
 
     normals[normIdx++] = vert.normal.x;
     normals[normIdx++] = vert.normal.y;
-    normals[normIdx++] = vert.normal.z;
+    normals[normIdx++] = vert.normal.z     * CoordinateSystemConversion;
 
     uvs[uvIdx++] = vert.uv.x;
     uvs[uvIdx++] = vert.uv.y;
@@ -102,38 +101,25 @@ export function fragmentToGeometry(fragment: Fragment): THREE.BufferGeometry {
   for (const vert of fragment.cutVertices) {
     positions[posIdx++] = vert.position.x;
     positions[posIdx++] = vert.position.y;
-    positions[posIdx++] = vert.position.z;
+    positions[posIdx++] = vert.position.z     * CoordinateSystemConversion;
 
     normals[normIdx++] = vert.normal.x;
     normals[normIdx++] = vert.normal.y;
-    normals[normIdx++] = vert.normal.z;
+    normals[normIdx++] = vert.normal.z     * CoordinateSystemConversion;
 
     uvs[uvIdx++] = vert.uv.x;
     uvs[uvIdx++] = vert.uv.y;
   }
 
-  geometry.addGroup(0, fragment.triangles[0].length, 0);
-  geometry.addGroup(
-    fragment.triangles[0].length,
-    fragment.triangles[1].length,
-    1,
+  const geometry = MeshGeometry.FromArrays(
+    positions,
+    normals,
+    uvs,
+    fragment.triangles.flat()
   );
 
-  geometry.setAttribute(
-    "position",
-    new THREE.BufferAttribute(new Float32Array(positions), 3),
-  );
-  geometry.setAttribute(
-    "normal",
-    new THREE.BufferAttribute(new Float32Array(normals), 3),
-  );
-  geometry.setAttribute(
-    "uv",
-    new THREE.BufferAttribute(new Float32Array(uvs), 2),
-  );
-  geometry.setIndex(
-    new THREE.BufferAttribute(new Uint32Array(fragment.triangles.flat()), 1),
-  );
+  geometry.setMaterialIndices(fragment.triangles[0].length, fragment.triangles[1].length);
+
 
   return geometry;
 }

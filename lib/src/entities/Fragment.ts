@@ -1,4 +1,4 @@
-import { Vector2, Vector3, Box3 } from "three";
+import { Vector2, Vector3, Box3 } from "../RendererApi";
 import { hash3 } from "../utils/MathUtils";
 import { MeshVertex } from "./MeshVertex";
 import { EdgeConstraint } from "./EdgeConstraint";

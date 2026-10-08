@@ -1,4 +1,4 @@
-import { Vector2, Vector3 } from "three";
+import { Vector2, Vector3 } from "../RendererApi";
 import { Fragment, SlicedMeshSubmesh } from "../entities/Fragment";
 import { isPointAbovePlane, linePlaneIntersection } from "../utils/MathUtils";
 import { MeshVertex } from "../entities/MeshVertex";

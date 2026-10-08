@@ -1,5 +1,5 @@
 import { MeshVertex } from "../MeshVertex";
-import { Vector2, Vector3 } from "three";
+import { Vector2, Vector3 } from "../../RendererApi";
 
 describe("MeshVertex", () => {
   test("should create vertex with default parameters", () => {

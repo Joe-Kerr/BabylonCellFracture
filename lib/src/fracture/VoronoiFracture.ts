@@ -1,5 +1,4 @@
-import * as THREE from "three";
-import { Vector3 } from "three";
+import { Vector3, MeshGeometry } from "../RendererApi";
 import { VoronoiFractureOptions } from "../entities/VoronoiFractureOptions";
 import { SeedPointGenerator } from "../utils/SeedPointGenerator";
 import { computeVoronoiCell, findKNearestNeighbors } from "./VoronoiCell";
@@ -20,9 +19,9 @@ import { SeededRandom } from "../utils/SeededRandom";
  * @returns Array of fractured geometry pieces
  */
 export function voronoiFracture(
-  geometry: THREE.BufferGeometry,
+  geometry: MeshGeometry,
   options: VoronoiFractureOptions,
-): THREE.BufferGeometry[] {
+): MeshGeometry[] {
   // Create seeded random number generator
   const rng = new SeededRandom(options.seed);
   const seed = rng.getSeed();

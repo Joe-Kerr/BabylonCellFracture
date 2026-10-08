@@ -1,4 +1,4 @@
-import { Vector2, Vector3 } from "three";
+import { Vector2, Vector3 } from "../../RendererApi";
 import * as MathUtils from "../MathUtils";
 import { hashi2, hashv2, hash3 } from "../MathUtils";
 

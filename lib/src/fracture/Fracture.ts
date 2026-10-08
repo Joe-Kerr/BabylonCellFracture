@@ -1,4 +1,4 @@
-import * as THREE from "three";
+import { MeshGeometry } from "../RendererApi";
 import { FractureOptions } from "../entities/FractureOptions";
 import { fractureFragment } from "./FractureFragment";
 import {
@@ -12,9 +12,9 @@ import {
  * @param options Options for fracturing
  */
 export function fracture(
-  geometry: THREE.BufferGeometry,
+  geometry: MeshGeometry,
   options: FractureOptions,
-): THREE.BufferGeometry[] {
+): MeshGeometry[] {
   const fragments = fractureFragment(geometryToFragment(geometry), options);
   return fragments.map((fragment) => fragmentToGeometry(fragment));
 }

@@ -1,4 +1,4 @@
-import { Vector2, Vector3 } from "three";
+import { Vector2, Vector3 } from "../../RendererApi";
 import { VoronoiFractureOptions } from "../VoronoiFractureOptions";
 
 describe("VoronoiFractureOptions", () => {

@@ -1,4 +1,4 @@
-import { Vector2, Vector3 } from "three";
+import { Vector2, Vector3 } from "../RendererApi";
 import TriangulationPoint from "../entities/TriangulationPoint";
 import { MeshVertex } from "../entities/MeshVertex";
 import { BinSort } from "../utils/BinSort";
