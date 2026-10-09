@@ -98,7 +98,14 @@ export class Box3 {
     }
 }
 
-export class MeshGeometry {
+export interface IMeshGeometryThin {
+    positions : ArrayLike<number>
+    normals : ArrayLike<number>
+    uvs : ArrayLike<number>
+    indices : ArrayLike<number>
+}
+
+export class MeshGeometry implements IMeshGeometryThin {
     public positions : Float32Array;
     public normals : Float32Array;
     public uvs : Float32Array;
@@ -114,6 +121,10 @@ export class MeshGeometry {
         this.normals = normals;
         this.uvs = uvs;
         this.indices = indices;
+    }
+
+    public static FromObject(object : IMeshGeometryThin) {
+        return MeshGeometry.FromArrays(object.positions, object.normals, object.uvs, object.indices);
     }
 
     public static FromArrays(positions : ArrayLike<number>, normals : ArrayLike<number>, uvs : ArrayLike<number>, indices : ArrayLike<number>) {

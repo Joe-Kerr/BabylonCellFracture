@@ -1,6 +1,6 @@
-import { Material, Mesh, VertexBuffer, VertexData, Quaternion, Vector3, Matrix } from "@babylonjs/core/pure";
+import { Material, Mesh, VertexBuffer, VertexData, Quaternion, Vector3, Matrix, Scene } from "@babylonjs/core/pure";
 
-import { MeshGeometry, IVector3Thin, Vector3 as V3 } from "./RendererApi";
+import { MeshGeometry, IMeshGeometryThin, IVector3Thin, Vector3 as V3 } from "./RendererApi";
 import { FractureOptions } from "./entities/FractureOptions";
 import { SliceOptions } from "./entities/SliceOptions";
 import { voronoiFracture } from "./fracture/VoronoiFracture";
@@ -15,7 +15,7 @@ interface IBabylon {
   Vector3 : typeof Vector3
 }
 
-// https://playground.babylonjs.com/#0H33JG
+// https://playground.babylonjs.com/#0H33JG#1
 
 /**
  * A THREE.Mesh that can be fractured or sliced into fragments.
@@ -23,25 +23,14 @@ interface IBabylon {
  * you must manually add them using scene.add(...fragments).
  */
 export class DestructibleMesh {
-  private readonly BABYLON : IBabylon;
-  private _mesh : Mesh;
-  private _outsideMaterial : Material|null = null;
-  private _insideMaterial : Material|null = null;
-
-  public get mesh() { return this._mesh; }
+  private geometry : MeshGeometry;
 
   constructor(
-    BABYLON : IBabylon,
-    mesh : Mesh,
-    outerMaterial?: Material,
-    innerMaterial?: Material,
+    geometry : IMeshGeometryThin
   ) {
     // Always start with single outer material
     // Material arrays will be set explicitly in fracture/slice methods
-    this._mesh = mesh;
-    this._outsideMaterial = outerMaterial || mesh.material || null;
-    this._insideMaterial = innerMaterial || null;
-    this.BABYLON = BABYLON;
+    this.geometry = geometry instanceof MeshGeometry ? geometry : MeshGeometry.FromObject(geometry);
   }
 
   /**
@@ -57,11 +46,7 @@ export class DestructibleMesh {
     onComplete?: () => void,
   ): DestructibleMesh[] {
 
-    const source = this.extractMeshGeometry();
-
-    if(source === null) {
-      return [];
-    }
+    const source = this.geometry;
 
     // Perform the fracture operation based on the method
     let fragmentGeometries: MeshGeometry[];
@@ -89,16 +74,10 @@ export class DestructibleMesh {
     else {
       fragmentGeometries = simpleFracture(source, options);
     }
-
-    const parentMatrix = this._mesh.computeWorldMatrix();
+    
     // Create mesh objects for each fragment
     const fragments = fragmentGeometries.map((fragmentGeometry, index) => {
-      
-      const fragMesh = this.convertGeometryToBabylonMesh(fragmentGeometry);
-   
-      this.applyFragmentTransformsToBabylonMesh(parentMatrix, fragMesh);
-
-      const destMesh = new DestructibleMesh(this.BABYLON, fragMesh, this._outsideMaterial || undefined, this._insideMaterial || undefined);
+      const destMesh = new DestructibleMesh(fragmentGeometry);
 
       // Call the onFragment callback if provided
       if (onFragment) {        
@@ -134,11 +113,7 @@ export class DestructibleMesh {
     onComplete?: () => void,
   ): DestructibleMesh[] {
    
-    const source = this.extractMeshGeometry();
-
-    if(source === null) {
-      throw new Error("DestructibleMesh has no geometry to slice");
-    }    
+    const source = this.geometry;  
 
     // Use default options if not provided
     const sliceOptions = options || new SliceOptions();
@@ -157,15 +132,7 @@ export class DestructibleMesh {
 
     // Create DestructibleMesh instances for all fragments
     const pieces = fragments.map((geometry, index) => {
-      // Create piece with inherited properties and materials
-      const piece = this.convertGeometryToBabylonMesh(geometry);
-
-      // Apply world transform
-      piece.position.copyFrom(this._mesh.position);
-      piece.rotationQuaternion!.copyFrom(this._mesh.rotationQuaternion || this._mesh.rotation.toQuaternion());
-      piece.scaling.copyFrom(this._mesh.scaling);
-
-      const destMesh = new DestructibleMesh(this.BABYLON, piece, this._outsideMaterial || undefined, this._insideMaterial || undefined);
+      const destMesh = new DestructibleMesh(geometry);
 
       // Call the onSlice callback if provided
       if (onSlice) {
@@ -219,16 +186,16 @@ export class DestructibleMesh {
     return this.slice(localNormal, localOrigin, options, onSlice, onComplete);
   }
 
-  private extractMeshGeometry() : MeshGeometry|null {
-    if(this._mesh.geometry === null) {
+  public static ExtractBabylonMeshGeometry(mesh : Mesh, BABYLON : IBabylon) : MeshGeometry|null {
+    if(mesh.geometry === null) {
       console.warn("Destructible mesh has no geometry.");
       return null;
     }
 
-    const ps = this._mesh.getVerticesData(this.BABYLON.VertexBuffer.PositionKind);
-    const ns = this._mesh.getVerticesData(this.BABYLON.VertexBuffer.NormalKind);
-    const us = this._mesh.getVerticesData(this.BABYLON.VertexBuffer.UVKind);
-    const is = this._mesh.getIndices() || [];
+    const ps = mesh.getVerticesData(BABYLON.VertexBuffer.PositionKind);
+    const ns = mesh.getVerticesData(BABYLON.VertexBuffer.NormalKind);
+    const us = mesh.getVerticesData(BABYLON.VertexBuffer.UVKind);
+    const is = mesh.getIndices() || [];
 
     if(ps === null || ns === null || us === null) {
       console.warn("Destructible mesh unexpected buffers.");
@@ -238,11 +205,12 @@ export class DestructibleMesh {
     return MeshGeometry.FromArrays(ps, ns, us, is);
   }
 
-  private convertGeometryToBabylonMesh(geometry : MeshGeometry) : Mesh {
-      const fragMesh = new this.BABYLON.Mesh("Frag", this._mesh.getScene());
-      const vertexData = new this.BABYLON.VertexData();
+  public convertGeometryToBabylonMesh(BABYLON : IBabylon, scene : Scene) : Mesh {
+      const geometry = this.geometry;
+      const fragMesh = new BABYLON.Mesh("Frag", scene);
+      const vertexData = new BABYLON.VertexData();
       const normals : number[] = [];
-      this.BABYLON.VertexData.ComputeNormals(geometry.positions, geometry.indices, normals);
+      BABYLON.VertexData.ComputeNormals(geometry.positions, geometry.indices, normals);
 
       vertexData.positions = geometry.positions;
       vertexData.uvs = geometry.uvs;
@@ -250,13 +218,15 @@ export class DestructibleMesh {
       vertexData.normals = normals;
       vertexData.applyToMesh(fragMesh, false); //not updatable? why should it? #todo  
 
-      fragMesh.rotationQuaternion = this.BABYLON.Quaternion.Identity();
+      fragMesh.rotationQuaternion = BABYLON.Quaternion.Identity();
 
       return fragMesh;
   }
 
-  private applyFragmentTransformsToBabylonMesh(parentMatrix : Matrix, fragMesh : Mesh) {
-      fragMesh.material = this._outsideMaterial;      
+  public applyFractureTransformsToBabylonMesh(parent : Mesh, fragMesh : Mesh, BABYLON : IBabylon) {
+      const parentMatrix = parent.computeWorldMatrix();
+
+      //fragMesh.material = this._outsideMaterial;      
       fragMesh.computeWorldMatrix(true);
       fragMesh.refreshBoundingInfo(true);
 
@@ -270,13 +240,20 @@ export class DestructibleMesh {
       fragMesh.refreshBoundingInfo(true);      
 
       // Apply the parent's transform to the fragment position
-      const worldCenter = this.BABYLON.Vector3.TransformCoordinates(bbxCenter, parentMatrix);
+      const worldCenter = BABYLON.Vector3.TransformCoordinates(bbxCenter, parentMatrix);
       fragMesh.position.copyFrom(worldCenter);
-      fragMesh.rotationQuaternion!.copyFrom(this._mesh.rotationQuaternion || this._mesh.rotation.toQuaternion());
-      fragMesh.scaling.copyFrom(this._mesh.scaling);
+      fragMesh.rotationQuaternion!.copyFrom(parent.rotationQuaternion || parent.rotation.toQuaternion());
+      fragMesh.scaling.copyFrom(parent.scaling);
 
       // Needed, if e.g. immediate physics setup
       fragMesh.computeWorldMatrix(true);
       fragMesh.refreshBoundingInfo(true);    
+  }
+
+  public applySliceTransformsToBabylonMesh(parent : Mesh, slice : Mesh) {
+      // Apply world transform
+      slice.position.copyFrom(parent.position);
+      slice.rotationQuaternion!.copyFrom(parent.rotationQuaternion || parent.rotation.toQuaternion());
+      slice.scaling.copyFrom(parent.scaling);
   }
 }
