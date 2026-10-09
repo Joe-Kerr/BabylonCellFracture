@@ -152,6 +152,7 @@ export class DestructibleMesh {
 
   /**
    * Slices the mesh using a plane defined in world space
+   * @deprecated Not porting this until I need it
    * @param worldNormal Normal of the slice plane in world space
    * @param worldOrigin Origin of the slice plane in world space
    * @param options Optional slice options
@@ -165,7 +166,8 @@ export class DestructibleMesh {
     options?: SliceOptions,
     onSlice?: (piece: DestructibleMesh, index: number) => void,
     onComplete?: () => void,
-  ): DestructibleMesh[] {
+  ) {
+    /*
     const worldNormalV3 = new V3(worldNormal.x, worldNormal.y, worldNormal.z);
     const worldOriginV3 = new V3(worldOrigin.x, worldOrigin.y, worldOrigin.z);
 
@@ -184,6 +186,7 @@ export class DestructibleMesh {
 
     // Call the regular slice method with local coordinates
     return this.slice(localNormal, localOrigin, options, onSlice, onComplete);
+    */
   }
 
   public static ExtractBabylonMeshGeometry(mesh : Mesh, BABYLON : IBabylon) : MeshGeometry|null {
