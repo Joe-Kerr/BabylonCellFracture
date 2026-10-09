@@ -1,4 +1,4 @@
-import { Material, Mesh, VertexBuffer, VertexData, Quaternion, Vector3 } from "@babylonjs/core/pure";
+import { Material, Mesh, VertexBuffer, VertexData, Quaternion, Vector3, Matrix } from "@babylonjs/core/pure";
 
 import { MeshGeometry, IVector3Thin, Vector3 as V3 } from "./RendererApi";
 import { FractureOptions } from "./entities/FractureOptions";
@@ -96,34 +96,12 @@ export class DestructibleMesh {
       
       const fragMesh = this.convertGeometryToBabylonMesh(fragmentGeometry);
    
-      fragMesh.material = this._outsideMaterial;      
-      fragMesh.computeWorldMatrix(true);
-      fragMesh.refreshBoundingInfo(true);
-
-      const bbxCenter = fragMesh.getBoundingInfo().boundingBox.centerWorld;
-      fragMesh.position.x -= bbxCenter.x;
-      fragMesh.position.y -= bbxCenter.y;
-      fragMesh.position.z -= bbxCenter.z;
-
-      // Needed
-      fragMesh.computeWorldMatrix(true);
-      fragMesh.refreshBoundingInfo(true);      
-
-      // Apply the parent's transform to the fragment position
-      const worldCenter = this.BABYLON.Vector3.TransformCoordinates(bbxCenter, parentMatrix);
-      fragMesh.position.copyFrom(worldCenter);
-      fragMesh.rotationQuaternion!.copyFrom(this._mesh.rotationQuaternion || this._mesh.rotation.toQuaternion());
-      fragMesh.scaling.copyFrom(this._mesh.scaling);
-
-      // Needed, if e.g. immediate physics setup
-      fragMesh.computeWorldMatrix(true);
-      fragMesh.refreshBoundingInfo(true);        
+      this.applyFragmentTransformsToBabylonMesh(parentMatrix, fragMesh);
 
       const destMesh = new DestructibleMesh(this.BABYLON, fragMesh, this._outsideMaterial || undefined, this._insideMaterial || undefined);
 
       // Call the onFragment callback if provided
-      if (onFragment) {
-        
+      if (onFragment) {        
         onFragment(destMesh, index);
       }
 
@@ -275,5 +253,30 @@ export class DestructibleMesh {
       fragMesh.rotationQuaternion = this.BABYLON.Quaternion.Identity();
 
       return fragMesh;
+  }
+
+  private applyFragmentTransformsToBabylonMesh(parentMatrix : Matrix, fragMesh : Mesh) {
+      fragMesh.material = this._outsideMaterial;      
+      fragMesh.computeWorldMatrix(true);
+      fragMesh.refreshBoundingInfo(true);
+
+      const bbxCenter = fragMesh.getBoundingInfo().boundingBox.centerWorld;
+      fragMesh.position.x -= bbxCenter.x;
+      fragMesh.position.y -= bbxCenter.y;
+      fragMesh.position.z -= bbxCenter.z;
+
+      // Needed
+      fragMesh.computeWorldMatrix(true);
+      fragMesh.refreshBoundingInfo(true);      
+
+      // Apply the parent's transform to the fragment position
+      const worldCenter = this.BABYLON.Vector3.TransformCoordinates(bbxCenter, parentMatrix);
+      fragMesh.position.copyFrom(worldCenter);
+      fragMesh.rotationQuaternion!.copyFrom(this._mesh.rotationQuaternion || this._mesh.rotation.toQuaternion());
+      fragMesh.scaling.copyFrom(this._mesh.scaling);
+
+      // Needed, if e.g. immediate physics setup
+      fragMesh.computeWorldMatrix(true);
+      fragMesh.refreshBoundingInfo(true);    
   }
 }
