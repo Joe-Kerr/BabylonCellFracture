@@ -1,3 +1,9 @@
+export interface IVector3Thin {
+    x : number;
+    y : number;
+    z : number;    
+}
+
 export class Vector2 {
     public x : number = 0;
     public y : number = 0;

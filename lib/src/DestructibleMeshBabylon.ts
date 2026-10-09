@@ -1,6 +1,6 @@
 import { Material, Mesh, VertexBuffer, VertexData, Quaternion, Vector3 } from "@babylonjs/core/pure";
 
-import { MeshGeometry } from "./RendererApi";
+import { MeshGeometry, IVector3Thin, Vector3 as V3 } from "./RendererApi";
 import { FractureOptions } from "./entities/FractureOptions";
 import { SliceOptions } from "./entities/SliceOptions";
 import { voronoiFracture } from "./fracture/VoronoiFracture";
@@ -57,22 +57,12 @@ export class DestructibleMesh {
     onComplete?: () => void,
   ): DestructibleMesh[] {
 
-    if(this._mesh.geometry === null) {
-      console.warn("Destructible mesh has no geometry.");
+    const source = this.extractMeshGeometry();
+
+    if(source === null) {
       return [];
     }
 
-    const ps = this._mesh.getVerticesData(this.BABYLON.VertexBuffer.PositionKind);
-    const ns = this._mesh.getVerticesData(this.BABYLON.VertexBuffer.NormalKind);
-    const us = this._mesh.getVerticesData(this.BABYLON.VertexBuffer.UVKind);
-    const is = this._mesh.getIndices() || [];
-
-    if(ps === null || ns === null || us === null) {
-      console.warn("Destructible mesh unexpected buffers.");
-      return [];      
-    }
-
-    const source = MeshGeometry.FromArrays(ps, ns, us, is);
     // Perform the fracture operation based on the method
     let fragmentGeometries: MeshGeometry[];
 
@@ -103,20 +93,10 @@ export class DestructibleMesh {
     const parentMatrix = this._mesh.computeWorldMatrix();
     // Create mesh objects for each fragment
     const fragments = fragmentGeometries.map((fragmentGeometry, index) => {
-
-      const fragMesh = new this.BABYLON.Mesh("Frag"+index, this._mesh.getScene());
-      const vertexData = new this.BABYLON.VertexData();
-      const normals : number[] = [];
-      this.BABYLON.VertexData.ComputeNormals(fragmentGeometry.positions, fragmentGeometry.indices, normals);
-
-      vertexData.positions = fragmentGeometry.positions;
-      vertexData.uvs = fragmentGeometry.uvs;
-      vertexData.indices = fragmentGeometry.indices;
-      vertexData.normals = normals;
-      vertexData.applyToMesh(fragMesh);     
       
-      fragMesh.material = this._outsideMaterial;
-      fragMesh.rotationQuaternion = this.BABYLON.Quaternion.Identity();
+      const fragMesh = this.convertGeometryToBabylonMesh(fragmentGeometry);
+   
+      fragMesh.material = this._outsideMaterial;      
       fragMesh.computeWorldMatrix(true);
       fragMesh.refreshBoundingInfo(true);
 
@@ -132,7 +112,7 @@ export class DestructibleMesh {
       // Apply the parent's transform to the fragment position
       const worldCenter = this.BABYLON.Vector3.TransformCoordinates(bbxCenter, parentMatrix);
       fragMesh.position.copyFrom(worldCenter);
-      fragMesh.rotationQuaternion.copyFrom(this._mesh.rotationQuaternion || this._mesh.rotation.toQuaternion());
+      fragMesh.rotationQuaternion!.copyFrom(this._mesh.rotationQuaternion || this._mesh.rotation.toQuaternion());
       fragMesh.scaling.copyFrom(this._mesh.scaling);
 
       // Needed, if e.g. immediate physics setup
@@ -160,6 +140,7 @@ export class DestructibleMesh {
 
   /**
    * Slices the mesh into top and bottom parts using a plane in local space
+   * @deprecated Untested, #todo
    * @param sliceNormal Normal of the slice plane in local space (points towards the top slice)
    * @param sliceOrigin Origin of the slice plane in local space
    * @param options Optional slice options
@@ -168,24 +149,30 @@ export class DestructibleMesh {
    * @returns Array of DestructibleMesh pieces created by the slice (NOT added to scene)
    */
   public slice(
-    sliceNormal: THREE.Vector3,
-    sliceOrigin: THREE.Vector3,
+    sliceNormal: IVector3Thin,
+    sliceOrigin: IVector3Thin,
     options?: SliceOptions,
     onSlice?: (piece: DestructibleMesh, index: number) => void,
     onComplete?: () => void,
   ): DestructibleMesh[] {
-    if (!this.geometry) {
+   
+    const source = this.extractMeshGeometry();
+
+    if(source === null) {
       throw new Error("DestructibleMesh has no geometry to slice");
-    }
+    }    
 
     // Use default options if not provided
     const sliceOptions = options || new SliceOptions();
 
+    const sliceNormalV3 = new V3(sliceNormal.x, sliceNormal.y, sliceNormal.z);
+    const sliceOriginV3 = new V3(sliceOrigin.x, sliceOrigin.y, sliceOrigin.z);
+
     // Perform the slice operation
     const fragments = slice(
-      this.geometry,
-      sliceNormal,
-      sliceOrigin,
+      source,
+      sliceNormalV3,
+      sliceOriginV3,
       sliceOptions.textureScale,
       sliceOptions.textureOffset,
     );
@@ -193,19 +180,21 @@ export class DestructibleMesh {
     // Create DestructibleMesh instances for all fragments
     const pieces = fragments.map((geometry, index) => {
       // Create piece with inherited properties and materials
-      const piece = this.createFragment(geometry);
+      const piece = this.convertGeometryToBabylonMesh(geometry);
 
       // Apply world transform
-      piece.position.copy(this.position);
-      piece.quaternion.copy(this.quaternion);
-      piece.scale.copy(this.scale);
+      piece.position.copyFrom(this._mesh.position);
+      piece.rotationQuaternion!.copyFrom(this._mesh.rotationQuaternion || this._mesh.rotation.toQuaternion());
+      piece.scaling.copyFrom(this._mesh.scaling);
+
+      const destMesh = new DestructibleMesh(this.BABYLON, piece, this._outsideMaterial || undefined, this._insideMaterial || undefined);
 
       // Call the onSlice callback if provided
       if (onSlice) {
-        onSlice(piece, index);
+        onSlice(destMesh, index);
       }
 
-      return piece;
+      return destMesh;
     });
 
     // Call the onComplete callback if provided
@@ -226,27 +215,65 @@ export class DestructibleMesh {
    * @returns Array of DestructibleMesh pieces created by the slice (NOT added to scene)
    */
   public sliceWorld(
-    worldNormal: THREE.Vector3,
-    worldOrigin: THREE.Vector3,
+    worldNormal: IVector3Thin,
+    worldOrigin: IVector3Thin,
     options?: SliceOptions,
     onSlice?: (piece: DestructibleMesh, index: number) => void,
     onComplete?: () => void,
   ): DestructibleMesh[] {
+    const worldNormalV3 = new V3(worldNormal.x, worldNormal.y, worldNormal.z);
+    const worldOriginV3 = new V3(worldOrigin.x, worldOrigin.y, worldOrigin.z);
+
     // Update the object's matrix to ensure accurate transformation
     this.updateMatrixWorld(true);
 
     // Transform slice normal and origin to object's local space
     const worldToLocal = new THREE.Matrix4().copy(this.matrixWorld).invert();
 
-    const localNormal = worldNormal
+    const localNormal = worldNormalV3
       .clone()
       .transformDirection(worldToLocal)
       .normalize();
 
-    const localOrigin = worldOrigin.clone().applyMatrix4(worldToLocal);
+    const localOrigin = worldOriginV3.clone().applyMatrix4(worldToLocal);
 
     // Call the regular slice method with local coordinates
     return this.slice(localNormal, localOrigin, options, onSlice, onComplete);
   }
 
+  private extractMeshGeometry() : MeshGeometry|null {
+    if(this._mesh.geometry === null) {
+      console.warn("Destructible mesh has no geometry.");
+      return null;
+    }
+
+    const ps = this._mesh.getVerticesData(this.BABYLON.VertexBuffer.PositionKind);
+    const ns = this._mesh.getVerticesData(this.BABYLON.VertexBuffer.NormalKind);
+    const us = this._mesh.getVerticesData(this.BABYLON.VertexBuffer.UVKind);
+    const is = this._mesh.getIndices() || [];
+
+    if(ps === null || ns === null || us === null) {
+      console.warn("Destructible mesh unexpected buffers.");
+      return null;      
+    } 
+    
+    return MeshGeometry.FromArrays(ps, ns, us, is);
+  }
+
+  private convertGeometryToBabylonMesh(geometry : MeshGeometry) : Mesh {
+      const fragMesh = new this.BABYLON.Mesh("Frag", this._mesh.getScene());
+      const vertexData = new this.BABYLON.VertexData();
+      const normals : number[] = [];
+      this.BABYLON.VertexData.ComputeNormals(geometry.positions, geometry.indices, normals);
+
+      vertexData.positions = geometry.positions;
+      vertexData.uvs = geometry.uvs;
+      vertexData.indices = geometry.indices;
+      vertexData.normals = normals;
+      vertexData.applyToMesh(fragMesh, false); //not updatable? why should it? #todo  
+
+      fragMesh.rotationQuaternion = this.BABYLON.Quaternion.Identity();
+
+      return fragMesh;
+  }
 }
