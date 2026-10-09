@@ -57,8 +57,6 @@ export class DestructibleMesh {
     onComplete?: () => void,
   ): DestructibleMesh[] {
 
-    
-    
     if(this._mesh.geometry === null) {
       console.warn("Destructible mesh has no geometry.");
       return [];
@@ -78,38 +76,28 @@ export class DestructibleMesh {
     // Perform the fracture operation based on the method
     let fragmentGeometries: MeshGeometry[];
 
-    try {
-      if (options.fractureMethod === "voronoi") {
-        if (!options.voronoiOptions) {
-          throw new Error(
-            "voronoiOptions is required when fractureMethod is 'voronoi'",
-          );
-        }
+    if (options.fractureMethod === "voronoi") {
+      options.voronoiOptions = options.voronoiOptions || {mode: "3D"};
+      const voronoiOptions = {
+        fragmentCount: options.fragmentCount,
+        mode: options.voronoiOptions.mode,
+        seedPoints: options.voronoiOptions.seedPoints,
+        impactPoint: options.voronoiOptions.impactPoint,
+        impactRadius: options.voronoiOptions.impactRadius,
+        projectionAxis: options.voronoiOptions.projectionAxis || "auto",
+        projectionNormal: options.voronoiOptions.projectionNormal,
+        useApproximation: options.voronoiOptions.useApproximation || false,
+        approximationNeighborCount:
+        options.voronoiOptions.approximationNeighborCount || 12,
+        textureScale: options.textureScale,
+        textureOffset: options.textureOffset,
+        seed: options.seed
+      };
 
-        // Convert FractureOptions to VoronoiFractureOptions format for the voronoiFracture function
-        const voronoiOptions = {
-          fragmentCount: options.fragmentCount,
-          mode: options.voronoiOptions.mode,
-          seedPoints: options.voronoiOptions.seedPoints,
-          impactPoint: options.voronoiOptions.impactPoint,
-          impactRadius: options.voronoiOptions.impactRadius,
-          projectionAxis: options.voronoiOptions.projectionAxis || "auto",
-          projectionNormal: options.voronoiOptions.projectionNormal,
-          useApproximation: options.voronoiOptions.useApproximation || false,
-          approximationNeighborCount:
-            options.voronoiOptions.approximationNeighborCount || 12,
-          textureScale: options.textureScale,
-          textureOffset: options.textureOffset,
-          seed: options.seed,
-        };
-
-        fragmentGeometries = voronoiFracture(source, voronoiOptions);
-      } else {
-        fragmentGeometries = simpleFracture(source, options);
-      }
-    } catch (error) {
-      console.error("Fracture operation failed:", error);
-      throw error;
+      fragmentGeometries = voronoiFracture(source, voronoiOptions);      
+    } 
+    else {
+      fragmentGeometries = simpleFracture(source, options);
     }
 
     const parentMatrix = this._mesh.computeWorldMatrix();
