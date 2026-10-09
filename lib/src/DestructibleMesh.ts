@@ -1,4 +1,4 @@
-import * as THREE from "three";
+import { MeshGeometry, IMeshGeometryThin, IVector3Thin, Vector3 as V3 } from "./RendererApi";
 import { FractureOptions } from "./entities/FractureOptions";
 import { SliceOptions } from "./entities/SliceOptions";
 import { voronoiFracture } from "./fracture/VoronoiFracture";
@@ -10,53 +10,14 @@ import { slice } from "./fracture/Slice";
  * Fragments are returned but NOT automatically added to the scene -
  * you must manually add them using scene.add(...fragments).
  */
-export class DestructibleMesh extends THREE.Mesh {
-  private _outsideMaterial?: THREE.Material;
-  private _insideMaterial?: THREE.Material;
+export class DestructibleMesh {
+  protected _geometry : MeshGeometry;
 
-  constructor(
-    geometry?: THREE.BufferGeometry<THREE.NormalBufferAttributes>,
-    outerMaterial?: THREE.Material,
-    innerMaterial?: THREE.Material,
-  ) {
-    // Always start with single outer material
-    // Material arrays will be set explicitly in fracture/slice methods
-    super(geometry, outerMaterial);
-
-    this._outsideMaterial = outerMaterial;
-    this._insideMaterial = innerMaterial;
+  constructor(geometry : IMeshGeometryThin) {
+    this._geometry = geometry instanceof MeshGeometry ? geometry : MeshGeometry.FromObject(geometry);
   }
 
-  /**
-   * Helper method to create a fragment with inherited properties and materials
-   * @internal
-   */
-  private createFragment(
-    geometry: THREE.BufferGeometry,
-  ): DestructibleMesh {
-    const fragment = new DestructibleMesh(
-      geometry,
-      this._outsideMaterial,
-      this._insideMaterial,
-    );
-
-    // Set material array for geometries with material groups
-    // Group 0 (materialIndex 0) = outer material, Group 1 (materialIndex 1) = inner material
-    if (this._outsideMaterial && this._insideMaterial) {
-      fragment.material = [this._outsideMaterial, this._insideMaterial];
-    } else if (this._outsideMaterial) {
-      fragment.material = this._outsideMaterial;
-    }
-
-    // Copy rendering properties from parent mesh
-    fragment.castShadow = this.castShadow;
-    fragment.receiveShadow = this.receiveShadow;
-    fragment.matrixAutoUpdate = this.matrixAutoUpdate;
-    fragment.frustumCulled = this.frustumCulled;
-    fragment.renderOrder = this.renderOrder;
-
-    return fragment;
-  }
+  public get geometry() { return this._geometry; }
 
   /**
    * Fractures the mesh into fragments
@@ -65,80 +26,51 @@ export class DestructibleMesh extends THREE.Mesh {
    * @param onComplete Optional callback called once after all fragments are created
    * @returns The array of created fragment meshes (NOT added to scene)
    */
-  fracture(
+  public fracture(
     options: FractureOptions,
     onFragment?: (fragment: DestructibleMesh, index: number) => void,
     onComplete?: () => void,
   ): DestructibleMesh[] {
-    if (!this.geometry) {
-      throw new Error("DestructibleMesh has no geometry to fracture");
-    }
+
+    const source = this._geometry;
 
     // Perform the fracture operation based on the method
-    let fragmentGeometries: THREE.BufferGeometry[];
+    let fragmentGeometries: MeshGeometry[];
 
-    try {
-      if (options.fractureMethod === "voronoi") {
-        if (!options.voronoiOptions) {
-          throw new Error(
-            "voronoiOptions is required when fractureMethod is 'voronoi'",
-          );
-        }
+    if (options.fractureMethod === "voronoi") {
+      options.voronoiOptions = options.voronoiOptions || {mode: "3D"};
+      const voronoiOptions = {
+        fragmentCount: options.fragmentCount,
+        mode: options.voronoiOptions.mode,
+        seedPoints: options.voronoiOptions.seedPoints,
+        impactPoint: options.voronoiOptions.impactPoint,
+        impactRadius: options.voronoiOptions.impactRadius,
+        projectionAxis: options.voronoiOptions.projectionAxis || "auto",
+        projectionNormal: options.voronoiOptions.projectionNormal,
+        useApproximation: options.voronoiOptions.useApproximation || false,
+        approximationNeighborCount:
+        options.voronoiOptions.approximationNeighborCount || 12,
+        textureScale: options.textureScale,
+        textureOffset: options.textureOffset,
+        seed: options.seed
+      };
 
-        // Convert FractureOptions to VoronoiFractureOptions format for the voronoiFracture function
-        const voronoiOptions = {
-          fragmentCount: options.fragmentCount,
-          mode: options.voronoiOptions.mode,
-          seedPoints: options.voronoiOptions.seedPoints,
-          impactPoint: options.voronoiOptions.impactPoint,
-          impactRadius: options.voronoiOptions.impactRadius,
-          projectionAxis: options.voronoiOptions.projectionAxis || "auto",
-          projectionNormal: options.voronoiOptions.projectionNormal,
-          useApproximation: options.voronoiOptions.useApproximation || false,
-          approximationNeighborCount:
-            options.voronoiOptions.approximationNeighborCount || 12,
-          textureScale: options.textureScale,
-          textureOffset: options.textureOffset,
-          seed: options.seed,
-        };
-
-        fragmentGeometries = voronoiFracture(this.geometry, voronoiOptions);
-      } else {
-        fragmentGeometries = simpleFracture(this.geometry, options);
-      }
-    } catch (error) {
-      console.error("Fracture operation failed:", error);
-      throw error;
+      fragmentGeometries = voronoiFracture(source, voronoiOptions);      
+    } 
+    else {
+      fragmentGeometries = simpleFracture(source, options);
     }
-
+    
     // Create mesh objects for each fragment
     const fragments = fragmentGeometries.map((fragmentGeometry, index) => {
-      // Compute bounding box to get the center of this fragment
-      fragmentGeometry.computeBoundingBox();
-      const center = new THREE.Vector3();
-      fragmentGeometry.boundingBox!.getCenter(center);
-
-      // Translate the geometry so its center is at the origin
-      fragmentGeometry.translate(-center.x, -center.y, -center.z);
-
-      // Recompute bounding sphere after translation
-      fragmentGeometry.computeBoundingSphere();
-
-      // Create fragment with inherited properties and materials
-      const fragment = this.createFragment(fragmentGeometry);
-
-      // Apply the parent's transform to the fragment position
-      const worldCenter = center.clone().applyMatrix4(this.matrixWorld);
-      fragment.position.copy(worldCenter);
-      fragment.quaternion.copy(this.quaternion);
-      fragment.scale.copy(this.scale);
+      const destMesh = new DestructibleMesh(fragmentGeometry);
 
       // Call the onFragment callback if provided
-      if (onFragment) {
-        onFragment(fragment, index);
+      if (onFragment) {        
+        onFragment(destMesh, index);
       }
 
-      return fragment;
+      return destMesh;
     });
 
     // Call the onComplete callback if provided
@@ -151,6 +83,9 @@ export class DestructibleMesh extends THREE.Mesh {
 
   /**
    * Slices the mesh into top and bottom parts using a plane in local space
+   * 
+   * @deprecated Untested, #todo
+   * 
    * @param sliceNormal Normal of the slice plane in local space (points towards the top slice)
    * @param sliceOrigin Origin of the slice plane in local space
    * @param options Optional slice options
@@ -158,45 +93,41 @@ export class DestructibleMesh extends THREE.Mesh {
    * @param onComplete Optional callback called once after all pieces are created
    * @returns Array of DestructibleMesh pieces created by the slice (NOT added to scene)
    */
-  slice(
-    sliceNormal: THREE.Vector3,
-    sliceOrigin: THREE.Vector3,
+  public slice(
+    sliceNormal: IVector3Thin,
+    sliceOrigin: IVector3Thin,
     options?: SliceOptions,
     onSlice?: (piece: DestructibleMesh, index: number) => void,
     onComplete?: () => void,
   ): DestructibleMesh[] {
-    if (!this.geometry) {
-      throw new Error("DestructibleMesh has no geometry to slice");
-    }
+   
+    const source = this._geometry;  
 
     // Use default options if not provided
     const sliceOptions = options || new SliceOptions();
 
+    const sliceNormalV3 = new V3(sliceNormal.x, sliceNormal.y, sliceNormal.z);
+    const sliceOriginV3 = new V3(sliceOrigin.x, sliceOrigin.y, sliceOrigin.z);
+
     // Perform the slice operation
     const fragments = slice(
-      this.geometry,
-      sliceNormal,
-      sliceOrigin,
+      source,
+      sliceNormalV3,
+      sliceOriginV3,
       sliceOptions.textureScale,
       sliceOptions.textureOffset,
     );
 
     // Create DestructibleMesh instances for all fragments
     const pieces = fragments.map((geometry, index) => {
-      // Create piece with inherited properties and materials
-      const piece = this.createFragment(geometry);
-
-      // Apply world transform
-      piece.position.copy(this.position);
-      piece.quaternion.copy(this.quaternion);
-      piece.scale.copy(this.scale);
+      const destMesh = new DestructibleMesh(geometry);
 
       // Call the onSlice callback if provided
       if (onSlice) {
-        onSlice(piece, index);
+        onSlice(destMesh, index);
       }
 
-      return piece;
+      return destMesh;
     });
 
     // Call the onComplete callback if provided
@@ -209,6 +140,9 @@ export class DestructibleMesh extends THREE.Mesh {
 
   /**
    * Slices the mesh using a plane defined in world space
+   * 
+   * @deprecated Not porting this until I need it
+   * 
    * @param worldNormal Normal of the slice plane in world space
    * @param worldOrigin Origin of the slice plane in world space
    * @param options Optional slice options
@@ -216,43 +150,32 @@ export class DestructibleMesh extends THREE.Mesh {
    * @param onComplete Optional callback called once after all pieces are created
    * @returns Array of DestructibleMesh pieces created by the slice (NOT added to scene)
    */
-  sliceWorld(
-    worldNormal: THREE.Vector3,
-    worldOrigin: THREE.Vector3,
+  public sliceWorld(
+    worldNormal: IVector3Thin,
+    worldOrigin: IVector3Thin,
     options?: SliceOptions,
     onSlice?: (piece: DestructibleMesh, index: number) => void,
     onComplete?: () => void,
-  ): DestructibleMesh[] {
+  ) {
+    /*
+    const worldNormalV3 = new V3(worldNormal.x, worldNormal.y, worldNormal.z);
+    const worldOriginV3 = new V3(worldOrigin.x, worldOrigin.y, worldOrigin.z);
+
     // Update the object's matrix to ensure accurate transformation
     this.updateMatrixWorld(true);
 
     // Transform slice normal and origin to object's local space
     const worldToLocal = new THREE.Matrix4().copy(this.matrixWorld).invert();
 
-    const localNormal = worldNormal
+    const localNormal = worldNormalV3
       .clone()
       .transformDirection(worldToLocal)
       .normalize();
 
-    const localOrigin = worldOrigin.clone().applyMatrix4(worldToLocal);
+    const localOrigin = worldOriginV3.clone().applyMatrix4(worldToLocal);
 
     // Call the regular slice method with local coordinates
     return this.slice(localNormal, localOrigin, options, onSlice, onComplete);
-  }
-
-  /**
-   * Disposes the mesh geometry and material
-   */
-  dispose(): void {
-    if (this.geometry) {
-      this.geometry.dispose();
-    }
-    if (this.material) {
-      if (Array.isArray(this.material)) {
-        this.material.forEach((mat) => mat.dispose());
-      } else {
-        this.material.dispose();
-      }
-    }
+    */
   }
 }
