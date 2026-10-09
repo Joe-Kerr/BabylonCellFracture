@@ -2,14 +2,17 @@
 
 Port of [three-pinata](https://github.com/dgreenheck/three-pinata/tree/main) mainly for use in [Babylon.js](https://www.babylonjs.com/).
 
-All hard-coded dependecies on Three were removed and replaced with library agnostic code. Except:
+All hard-coded dependencies on Three were removed and replaced with library agnostic code. Except:
 
-- DestructibleMeshBabylon.ts: This is where Babylon meshes are assembled. 
 - GeometryConversion.ts: Three.js uses a right-handed coordinate system, Babylon.js uses a left-handed one. I hard-coded a z-flip.
 
-Current state: quick and dirty proof of concept. Stanford bunny shatters (with Havok) just fine.
+Babylon specific converters live in destructibleMeshBabylon.ts. The main script, DestructibleMesh.ts, is meant to be consumed by a worker.
+
+Current state: quick and dirty proof of concept. Stanford bunny shatters (with Havok) just fine ([see](https://playground.babylonjs.com/#0H33JG#2)).
 
 Beware: I have no clue how to run the test suites; seems to expect Javascript, not Typescript.
+
+---
 
 Original readme below:
 
