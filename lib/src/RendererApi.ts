@@ -15,6 +15,11 @@ export class Vector2 {
 
     public clone() : Vector2 {
         return new Vector2(this.x, this.y);
+    }
+
+    // For unit tests only; #todo
+    public equals(v : Vector2) {
+        return this.x === v.x && this.y === v.y;
     }    
 }
 
@@ -76,6 +81,18 @@ export class Vector3 {
     private length() {
         return Math.sqrt( this.x * this.x + this.y * this.y + this.z * this.z )
     }
+
+    // For unit tests only; #todo
+    public equals(v : Vector3) {
+        return this.x === v.x && this.y === v.y && this.z === v.z;
+    }
+
+    // For unit tests only; #todo
+    public set(x:number, y:number, z:number) {
+        this.x = x;
+        this.y = y;
+        this.z = z;
+    }
 }
 
 export class Box3 {
@@ -136,15 +153,15 @@ export class MeshGeometry implements IMeshGeometryThin {
         );
     }
 
-    public setMaterialIndices(numOriginalMeshTris : number, numCutFacesTris : number) {
-        if(numCutFacesTris === 0) {
+    public setMaterialIndices(numOriginalMeshVerts : number, numCutFacesVerts : number) {
+        if(numCutFacesVerts === 0) {
             return;
         }
 
         this.idxOrgStart = 0;
-        this.idxOrgEnd = numOriginalMeshTris - 1;
+        this.idxOrgEnd = (3 * numOriginalMeshVerts) - 1;
 
         this.idxCutStart = this.idxOrgEnd + 1;
-        this.idxCutEnd = this.idxCutStart + numCutFacesTris - 1;
+        this.idxCutEnd = this.idxCutStart + (3 * numCutFacesVerts) - 1;
     }
 }

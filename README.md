@@ -10,7 +10,7 @@ Babylon specific converters live in destructibleMeshBabylon.ts. The main script,
 
 Current state: quick and dirty proof of concept. Stanford bunny shatters (with Havok) just fine ([see](https://playground.babylonjs.com/#0H33JG#2)).
 
-Beware: I have no clue how to run the test suites; seems to expect Javascript, not Typescript.
+Tests: Goto ./lib. Run "npx jest". Some complaints about require vs es-modules, but tests do run. :/
 
 ---
 

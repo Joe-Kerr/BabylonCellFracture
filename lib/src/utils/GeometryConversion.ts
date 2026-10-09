@@ -118,7 +118,7 @@ export function fragmentToGeometry(fragment: Fragment): MeshGeometry {
     fragment.triangles.flat()
   );
 
-  geometry.setMaterialIndices(fragment.triangles[0].length, fragment.triangles[1].length);
+  geometry.setMaterialIndices(fragment.vertices.length, fragment.cutVertices.length);
 
 
   return geometry;
